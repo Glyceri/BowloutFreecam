@@ -57,8 +57,8 @@ namespace BowloutFreecam
                 if (freecamOn) HandleOn();
                 else HandleOff();
             }
-
-            float scroll = UnityEngine.Input.mouseScrollDelta.y * Time.unscaledDeltaTime * 40;
+            float scroll = 0;
+            if (FreecamSettings.ScrollingHandlesSpeed) scroll = UnityEngine.Input.mouseScrollDelta.y * Time.unscaledDeltaTime * 40;
 
             speed += scroll;
 
