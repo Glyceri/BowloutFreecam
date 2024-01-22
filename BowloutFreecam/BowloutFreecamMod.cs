@@ -4,6 +4,7 @@ using BowloutModManager.BowloutMod.Interfaces;
 using UnityEngine;
 using System;
 using FPSepController;
+using UnityEngine.InputSystem;
 
 namespace BowloutFreecam
 {
@@ -15,20 +16,21 @@ namespace BowloutFreecam
 
         public string Description => "Allows the user to freecam wherevery they may please :)";
 
+        public bool Enabled { get; set; }
+
         public IBowloutConfiguration Configuration { get; private set; }
         public FreecamSettings FreecamSettings => (FreecamSettings)Configuration;
 
         public void OnSetup()
         {
-            BLogger.WriteLineToLog("Hello from Freecam :D");
             Configuration = this.GetConfiguration<FreecamSettings>() ?? new FreecamSettings();
             this.SaveConfiguration(Configuration);
-            BLogger.WriteLineToLog(FreecamSettings.Version + " : " + FreecamSettings.ScrollingHandlesSpeed);
+            BLogger.WriteLineToLog("Freecam Mod: " + FreecamSettings.Version + " : " + FreecamSettings.ScrollingHandlesSpeed);
         }
 
         public void Dispose()
         {
-            BLogger.WriteLineToLog("Lights out innit!");
+            
         }
 
         public void OnEnable()
@@ -47,18 +49,20 @@ namespace BowloutFreecam
 
         Vector3 startPos;
 
+        Vector3 lastPos = Vector3.zero;
+
         float speed = 4.0f;
 
         public void OnUpdate()
         {
-            if (Input.GetKeyDown(KeyCode.LeftAlt))
+            if (Keyboard.current[Key.LeftAlt].wasPressedThisFrame)
             {
                 freecamOn = !freecamOn;
                 if (freecamOn) HandleOn();
                 else HandleOff();
             }
             float scroll = 0;
-            if (FreecamSettings.ScrollingHandlesSpeed) scroll = UnityEngine.Input.mouseScrollDelta.y * Time.unscaledDeltaTime * FreecamSettings.ScrollingSpeed;
+            if (FreecamSettings.ScrollingHandlesSpeed) scroll = Mouse.current.scroll.ReadValue().y * Time.unscaledDeltaTime * FreecamSettings.ScrollingSpeed;
 
             speed += scroll;
 
@@ -66,23 +70,31 @@ namespace BowloutFreecam
 
             if (freecamOn)
             {
+                if (Keyboard.current[Key.Escape].wasPressedThisFrame) HandleOff();
                 dir = Vector3.zero;
 
-                dir += curCam.transform.right * Input.GetAxisRaw("Horizontal");
-                dir += curCam.transform.forward * Input.GetAxisRaw("Vertical");
-                dir += Input.GetKey(KeyCode.Space) ? Vector3.up : Input.GetKey(KeyCode.LeftShift) ? -Vector3.up : Vector3.zero;
+                Vector2 inputDirs = new Vector2(Keyboard.current.dKey.isPressed ? 1.0f : Keyboard.current.aKey.isPressed ? -1.0f : 0.0f, Keyboard.current.wKey.isPressed ? 1.0f : Keyboard.current.sKey.isPressed ? -1.0f : 0.0f);
+
+                dir += curCam.transform.right * inputDirs.x;
+                dir += curCam.transform.forward * inputDirs.y;
+
+                dir += Keyboard.current.spaceKey.isPressed ? Vector3.up : Keyboard.current.leftShiftKey.isPressed ? -Vector3.up : Vector3.zero;
 
                 dir *= Time.unscaledDeltaTime;
                 dir *= speed;
 
                 PlayerCamLook pCam = Component.FindObjectOfType<PlayerCamLook>();
-                if (pCam == null) return;
-                pCam.vCam.transform.position += dir;
+                if (pCam == null)  return;
+
+                pCam.cameraFollow.position = lastPos;
+                pCam.cameraFollow.position += dir;
+                lastPos = pCam.cameraFollow.position;   
             }
         }
 
         void HandleOn()
         {
+            freecamOn = true;   
             PauseHandler pHandler = Component.FindObjectOfType<PauseHandler>();
             if (pHandler == null) return;
             pHandler.GAME_PAUSE();
@@ -90,12 +102,14 @@ namespace BowloutFreecam
             curCam = Camera.main;
             PlayerCamLook pCam = Component.FindObjectOfType<PlayerCamLook>();
             if (pCam == null) return;
-            startPos = pCam.vCam.transform.position;
+            lastPos = pCam.cameraFollow.position;
+            startPos = pCam.cameraFollow.position;
             pCam.OnPlayerUnpause();
         }
 
         void HandleOff()
         {
+            freecamOn = false;
             PauseHandler pHandler = Component.FindObjectOfType<PauseHandler>();
             if (pHandler == null) return;
             pHandler.GAME_UNPAUSE();
@@ -103,7 +117,7 @@ namespace BowloutFreecam
             if (pCam == null) return;
             pCam.OnPlayerUnpause();
             curCam.transform.localPosition = new Vector3(0, 0, 0);
-            pCam.vCam.transform.position = startPos;
+            pCam.cameraFollow.position = startPos;
         }
 
         public void OnLateUpdate()
@@ -112,6 +126,11 @@ namespace BowloutFreecam
         }
 
         public void OnFixedUpdate()
+        {
+            
+        }
+
+        public void OnGUI()
         {
             
         }
